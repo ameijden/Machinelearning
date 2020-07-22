@@ -146,6 +146,7 @@ summary(il.pca)
 ## Q5
 library(caret)
 library(AppliedPredictiveModeling)
+RNGversion("3.0.0") ## This is what makes the difference
 set.seed(3433)
 data(AlzheimerDisease)
 adData = data.frame(diagnosis,predictors)
@@ -158,19 +159,59 @@ testing = adData[-inTrain,]
 ## as they are and one using PCA with principal components explaining 80% of the variance 
 ## in the predictors. Use method="glm" in the train function.
 
-
-trainingonlyIL <- grep("^IL", names(training))
 library(dplyr)
-
+trainingonlyIL <- grep("^IL", names(training))
 traningonlyILdata <- training[, c(names(training)[trainingonlyIL], "diagnosis")]
-names(traningonlyILdata)
+
+testonlyIL <- grep("^IL", names(testing))
+testingonlyILdata <- testing[, c(names(testing)[testonlyIL], "diagnosis")]
+
 
 Model1 <- train(diagnosis ~ ., data = traningonlyILdata, method="glm")
-summary(Model1$finalModel)
-summary(Model1$results)
-Model1$results
+Model1b <- train(diagnosis ~ ., data = traningonlyILdata, preProcess=c("center", "scale"), method="glm")
 
-Model1ontest <- predict(model1, data=)
+Model1ontest <- predict(Model1, newdata=testingonlyILdata)
+Model1bontest <- predict(Model1b, newdata=testingonlyILdata)
 
+confusionMatrix(Model1ontest,testingonlyILdata$diagnosis)
+confusionMatrix(testingonlyILdata$diagnosis, Model1ontest)
+
+confusionMatrix(testingonlyILdata$diagnosis, Model1ontest)
+confusionMatrix(Model1ontest, testingonlyILdata$diagnosis)
 
 ## non=pca 0,65
+
+## With PCA
+
+preProc <- preProcess(testingonlyILdata, method="pca", thresh = .8)
+Model2train <- predict(preProc, traningonlyILdata)
+Model2test <- predict(preProc, testingonlyILdata)
+
+Model2fFit <- train(diagnosis ~ ., data = testingonlyILdata, method = "glm")
+
+confusionMatrix(testingonlyILdata$diagnosis, Model2fFit)
+
+##############
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(3433)
+data(AlzheimerDisease)
+adData = data.frame(diagnosis,predictors)
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+
+
+set.seed(3433)
+trainingIL <- training[,grep("^IL|diagnosis", names(training))]
+testingIL <- testing[,grep("^IL|diagnosis", names(testing))]
+preProc <- preProcess(trainingIL, method = 'pca', thresh = 0.8)
+#nonPCA fit
+fit <- train(diagnosis~., data=trainingIL, method="glm")
+pred <- predict(fit, testingIL)
+cm <- confusionMatrix(pred, testingIL$diagnosis)
+cm
+
+
+## Why am I not getting the right results?
+

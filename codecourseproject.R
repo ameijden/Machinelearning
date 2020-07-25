@@ -121,3 +121,41 @@ E <- sum(training5$classe=="E") - 3670
 ##  Computer Science, University of Waikato, Hamilton,
 ##  New Zealand, Apr. 1999.
 
+## preProcess
+
+### caret package
+### preObj <- preProcess(training[,-58], method=c[“center”, “scale”] 
+### Not variable 58 because that is the variabele we want to predict. 
+### Don't forget to do this also for the testset!!
+                     
+                     
+######### Feature selection strategy (https://www.youtube.com/watch?v=ioXKxulmwVQ) with python code
+## Remove NA's (high percentage) -> review or visualize these variables
+### 50 to 95% drop variabels / < 50% use imputation 
+### preObj <- preProcess(training[,-58], method=”knnImpute”) 
+#### -> using 10 most likely numbers, take the mean and imputes this in the dataset
+##### Carefull when transforming factor variables (usually not done)
+
+## Remove variables with low variation -> VAR(x) = sigma squared -> standardize all variables 
+## If two variables are highly correlated, keeping only one -> which to keep? The one that has a higher
+### Correlation matrix with tolerance 0.65
+### correlation with the target -> How to know?
+## 
+## Feature selection (PCA) Principal Compenent Analysis
+## Drop variables which have a very low correlation with the target
+
+## Forward selection
+### Identify the best variable
+### Add the next best variable
+### Etc.
+
+## Backward elimination
+### Start with all variables
+##E Drop the least usefull one (based on the smallest drop in model accuracy)
+## Etc
+
+## lasso -> does feature selection for you
+
+## Tree based models -> set a level
+
+## Set up model evaluation first

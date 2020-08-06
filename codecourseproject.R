@@ -69,7 +69,7 @@ training$classe -> ABCDE
 ## Also a nice report with all methods used by the scientists is downloaded
 
 library(caret)
-fitlm1 <- train(classe ~., data=training5, method="glm")
+fitlm1 <- train(classe ~., data=training52, method="glm")
 
 nas <- (is.na(training))
 table(nas)
@@ -198,7 +198,7 @@ nearZeroVar(training5[,-53], saveMetrics = TRUE)
 ## Variables with the highest number of Unique values roll_dumbbell pitch_dumbbell  yaw_dumbbell 
 ## Make some plots
 
-
+library(ggplot2)
 ggplot(data=training5, aes(roll_dumbbell ,pitch_dumbbell))+
   geom_point(aes(color=classe))
 
@@ -209,6 +209,11 @@ ggplot(data=training5, aes(yaw_dumbbell ,pitch_dumbbell))+
 ggplot(data=training5, aes(pitch_forearm  ,pitch_dumbbell))+
   geom_point(aes(color=classe))
 
+
+
+
+ggplot(data=training2b, aes(pitch_forearm,magnet_belt_y ))+
+  geom_point(aes(color=classe)) ## Add later after 
 
 ?preProcess
 
@@ -329,6 +334,33 @@ ggplot(data=training2b, aes(total_accel_forearm,total_accel_dumbbell))+
 ggplot(data=training2b, aes(gyros_arm_x,magnet_arm_x))+
   geom_point(aes(color=classe))
 
+ggplot(data=training52, aes(x=pitch_forearm))+
+  geom_density(aes(color=classe))
+
+ggplot(data=training52, aes(x=magnet_arm_x))+
+  geom_density(aes(color=classe))
+
+
+ggplot(data=training52, aes(x=total_accel_dumbbell))+
+  geom_density(aes(color=classe))
+
+ggplot(data=training2b, aes(x=total_accel_dumbbell))+
+  geom_density(aes(color=classe))
+
+ggplot(data=training52, aes(x=pitch_forearm,magnet_belt_y ))+
+  geom_point(aes(color=classe))
+
+ggplot(data=training52, aes(pitch_forearm,magnet_belt_y ))+
+  geom_point(aes(color=classe))
+
+ggplot(data=training52, aes(x=classe, y=total_accel_dumbbell))+geom_boxplot()
+ggplot(data=training52, aes(x=classe, y=pitch_forearm))+geom_boxplot()
+ggplot(data=training52, aes(x=classe, y=magnet_belt_y))+geom_boxplot()
+
+
+
+
+str(training52)
 
 library(dplyr)
 training2f <- training2b[,-53] %>%
@@ -344,8 +376,6 @@ training2fn <- lapply(training2f, function(x) as.numeric(levels(x))[x])
 ## Combine these datasets to get a dataset with all numeric values (except of course classe)
 training3 <- cbind(training2nf, training2fn, training2b$classe)
 
-str(training3)
-
 colnames(training3)[53] <- "classe"
 
 library(caret)
@@ -355,6 +385,9 @@ cor(training3[,-53])
 PCA <- abs(cor(training3[,-53]))
 diag(PCA) <- 0 ## Diagnols always have 1 (because it always correlates with itself)
 which(PCA > 0.95, arr.ind=T)
+
+training4 <- training3
+training4$classe <- as.numeric(training4$classe)
 
 ## Keep only the variable with highest correlation with class
 cor(training4$classe, training4$accel_belt_z)
@@ -380,8 +413,189 @@ ggplot(corrSurvivedOrder, aes(x = factor(feature, levels = feature), y = coef)) 
   ylab("Correlation Coefficient")
 
 
-#### Perform feature selection based on this correlation? Keep 10?
+### Remove the one (of the two correlated features) which scored lowest on the correlation with class
 
+library(dplyr)
+training5 <- select(training4, -c(4, 26, 3, 10, 28, 2, 7, 13, 11, 17, 39, 40, 20, 23, 27, 35, 41, 50))
+                              
+## Next step / Random forests / Ensemble Trees https://thenewstack.io/3-new-techniques-for-data-dimensionality-reduction-in-machine-learning/
+
+### We generate a large set (2,000) of very shallow trees (two levels), and each tree is trained on a 
+## small fraction (three columns) of the total number of columns. If a column is often selected as the best split, 
+## it is very likely to be an informative column that we should keep. For all columns, we calculate a score as 
+## the number of times that the column was selected for the split, divided by the number of times in which 
+## it was a candidate. The most predictive columns are those with the highest scores.
+
+
+library(caret)
+?train
+
+training6 <- select(training5, c(1,2,3,35))
+
+modfit1 <- train(classe ~., data = train6, method="rf", prox=TRUE) ## Takes too long
+modfit1a <-  train(classe ~., data = training6, method="rpart")
+print(modfit1a$finalModel)
+plot(modfit1a$finalModel)
+library(pgmm)
+library(rattle)
+rattle::fancyRpartPlot(modfit1a$finalModel) ## Shows a nice tree with only a few predictors 
+
+training7 <- select(training6, -c(4))
+training8 <- cbind(training7, training$classe)
+colnames(training8)[4] <- "classe"
+
+modfit1b <-  train(classe ~., data = training8, method="rpart")
+rattle::fancyRpartPlot(modfit1b$finalModel)
+
+### rpart (caret package http://topepo.github.io/caret/train-models-by-tag.html#Tree_Based_Model)
+### CART - tuning parameters: cp (complexity parameter)
+### Classification and Regression Trees or CART 
+### a model specific variable importance metric is available
+
+
+## WHat are the options for rf method? 
+
+training51 <- select(training5, -c(35))
+training52 <- cbind(training51, training$classe)
+colnames(training52)[35] <- "classe"
+
+modfit1c <-  train(classe ~., data = training52, method="rpart") ## Really fast
+rattle::fancyRpartPlot(modfit1c$finalModel)
+print(modfit1c$finalModel)
+ 
+
+##  * denotes terminal node
+## 1) root 19622 14042 A (0.28 0.19 0.17 0.16 0.18)  
+## 2) pitch_forearm< -33.95 1578    10 A (0.99 0.0063 0 0 0) *
+##   3) pitch_forearm>=-33.95 18044 14032 A (0.22 0.21 0.19 0.18 0.2)  
+## 6) magnet_belt_y>=555.5 16579 12570 A (0.24 0.23 0.21 0.18 0.15)  
+## 12) roll_dumbbell< 63.52522 11837  8379 A (0.29 0.19 0.26 0.13 0.13)  
+## 24) roll_forearm< 122.5 7561  4475 A (0.41 0.18 0.2 0.11 0.099) *
+##   25) roll_forearm>=122.5 4276  2654 C (0.087 0.19 0.38 0.17 0.18)  
+## 50) magnet_dumbbell_z>=284.5 836   524 B (0.31 0.37 0.024 0.069 0.23) *
+##   51) magnet_dumbbell_z< 284.5 3440  1838 C (0.034 0.15 0.47 0.19 0.16) *
+##   13) roll_dumbbell>=63.52522 4742  3157 B (0.12 0.33 0.067 0.29 0.19)  
+## 26) total_accel_dumbbell>=6.5 3046  1625 B (0.07 0.47 0.055 0.16 0.25) *
+##   27) total_accel_dumbbell< 6.5 1696   805 D (0.2 0.097 0.09 0.53 0.088) *
+##   7) magnet_belt_y< 555.5 1465   275 E (0.002 0.0027 0.0014 0.18 0.81) *
+
+
+## Accuracy of this model is only about 50%
+## But we have some great features -> pitch_forearm < -35 -> then it is an A
+## And we get 81% E if magnet_belt_y > 556
+## All the others are not so good
+
+#### Can I use bagging (treebag) to get more trees?
+
+#######################
+
+modfit1d <-  train(classe ~., data = training2b, method="rpart")  ## Error, can't allocate vector of 11.4 Gb
+rattle::fancyRpartPlot(modfit2b$finalModel)
+print(modfit2b$finalModel)
+
+#### Can I use bagging (treebag) to get more trees and better accuraacy
+library(caret)
+set.seed(5634)
+trCtrl <- trainControl(method = "cv", number = 10) ## k-fold Cross Validation
+modfitbag1 <- train(classe ~., data = training52, method="treebag", trControl=trCtrl, metric="Accurarcy") 
+print(modfitbag1$finalModel)
+
+## Accurarcy=98%!! 
+## cv is cross validation
+
+#### From the assignment
+### You should create a report describing how you built your model, how you used cross validation, 
+## what you think the expected out of sample error is, and why you made the choices you did. 
+
+
+######### First get the test set with the same transformations as the training set
+###############################################################################
+library(dplyr)
+testing2 <- testing[ , colSums(is.na(training)) <nrow(training)*0.5]
+testing2b <-  select(testing2, -c(1,2,3,4,5,6,7))
+
+testing2f <- testing2b[,-53] %>%
+  (select_if(is.factor))
+
+library(tidyverse)
+testing2nf <- testing2b %>%
+  select_if(negate(is.factor))
+
+testing2fn <- lapply(testing2f, function(x) as.numeric(levels(x))[x])
+
+## Combine these datasets to get a dataset with all numeric values
+testing3 <- cbind(testing2nf, testing2fn)
+
+testing3 <- testing2b
+
+testing5 <- select(testing3, -c(8,9,10,13,22,23,25,35,38,48,1,2,3,18,28,29,31,46))
+
+testing6 <- testing5 %>%
+  select_if(is.factor)
+
+testing7 <- testing5  %>%
+  select_if(negate(is.factor))
+
+testing8 <- lapply(testing6, function(x) as.numeric(levels(x))[x])
+
+testing9 <- cbind(testing8, testing7)
+
+str(testing2b)
+str(training2b)
+unique(training$classe)
+unique(testing$problem_id)
+
+################## Now we can predict for the 20 observations
+
+PredictClassTest <- predict(modfitbag1, testing9)
+
+results <- data.frame("Participant"=testing$user_name, "Problem_id"=testing$problem_id, 
+                      "Class"=PredictClassTest)
+print(results)
+
+###########################
+
+## What is the out of sample error? 
+## Out of sample error =  RMSE = (not possible for a factor)
+
+modfitbag1$rmse ## NULL
+PredictClassTest$rmse ## Error
+
+### I don't have a testset to calculate the out of sample error,
+#### the test set does not contain any class information
+
+###############################
+
+#### Boosting
+
+modfitboost1 <- train(class ~ ., method="gbm", data=training53, verbose=FALSE) ## error not a matrix
+print(modfitboost1)
+
+training53 <- as.matrix(training52)
+str(training53)
+
+##########
+
+head(modfitbag1$pred)
+
+
+
+str(testing5)
+str(training51)
+
+
+str(testing3)
+str(training3)
+
+str(testing5)
+str(training5)
+
+str(testing2b)
+str(training2f)
+
+str(testing2)
+
+#### Perform feature selection based on this correlation? Keep 10?
 
 highlycor <- which(PCA > 0.75, arr.ind=T)
 write.csv(highlycor, "highcor.csv")

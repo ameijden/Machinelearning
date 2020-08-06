@@ -1,0 +1,117 @@
+Machine learning assignment
+
+For this assignment we use the Weight Lifting Exercises Dataset
+(More info about the data is available at http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell
+Biceps Curl in five different fashions: 
+exactly according to the specification (Class A), 
+throwing the elbows to the front (Class B),
+lifting the dumbbell only halfway (Class C), 
+lowering the dumbbell only halfway (Class D) 
+and throwing the hips to the front (Class E).
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. 
+ 
+The goal of this project is to predict the manner in which they did the exercise (the testset)
+ 
+First load the data
+
+```{r echo=FALSE}
+training <- read.csv2("pml-training.csv", sep=",",na.strings = c("NA","NaN","","#DIV/0!"))
+testing <- read.csv2("pml-testing.csv", sep="," ,na.strings = c("NA","NaN","","#DIV/0!"))
+```
+
+Look at this data
+```{r echo=FALSE}
+head(training)
+```
+
+We got 19622 observations of 160 variables.
+First step would be to reduce the number of variables.
+If we have more than 50% of na's in a column then remove this columns.
+
+```{r echo=FALSE}
+training2 <- training[ , colSums(is.na(training)) <nrow(training)*0.5]
+```
+
+No we only got 60 variables left. Let's do some exploratory analysis using graphs.
+
+```{r echo=FALSE}
+library(dplyr)
+training2b <-  select(training2, -c(1,2,3,4,5,6,7))
+```
+
+
+```{r echo=FALSE}
+library(ggplot2)
+ggplot(data=training2b, aes(gyros_arm_x,magnet_arm_x))+
+  geom_point(aes(color=classe))
+```
+
+I couldn't find any meaningfull plot. The only conclusion for me was that I needed to trim down the number of predictors. Next steps, see if any variables have no variance and find the predictors which are highly correlated. 
+
+To be able to calculate the variance and correlation factor I first need to make the factor variables numeric.
+```{r echo=FALSE}
+library(dplyr)
+training2f <- training2b[,-53] %>%
+  select_if(is.factor)
+
+library(tidyverse)
+training2nf <- training2b %>%
+  select_if(negate(is.factor))
+
+## Convert all columns to numeric of a dataset with only factors
+training2fn <- lapply(training2f, function(x) as.numeric(levels(x))[x])
+
+## Combine these datasets to get a dataset with all numeric values (except of course classe)
+training3 <- cbind(training2nf, training2fn, training2b$classe)
+
+colnames(training3)[53] <- "classe"
+```
+
+Let's see if we have some variables with no variance
+```{r echo=FALSE}
+library(caret)
+nearZeroVar(training3[,-53], saveMetrics = TRUE) ## No Trues
+cor(training3[,-53])
+```
+
+No variables with zero or near zero variance
+
+```{r echo=FALSE}
+PCA <- abs(cor(training3[,-53]))
+diag(PCA) <- 0 ## Diagnols always have 1 (because it always correlates with itself)
+which(PCA > 0.75, arr.ind=T)
+```
+A lot of variables which are highly correlated (>0,75).
+Find the pairs and remove the variable which has the highest correlation with classe.
+
+To do this, let's create a graph wich shows the correlation of these predictors with classe. 
+
+```{r echo=FALSE}
+training4 <- training3
+training4$classe <- as.numeric(training4$classe)
+```
+
+##### Create graph with correlation (https://www.kaggle.com/reisel/how-to-handle-correlated-features)
+
+```{r echo=FALSE}
+Classe <- training4$classe
+feature <- names(training4)
+
+corrClasse <- data.frame(feature = feature, coef = rep(NA, length(feature)))
+for (iFeature in 1:length(feature)){
+  corrClasse$coef[iFeature] <- cor(training4[, iFeature], Classe)
+}
+
+# sort by correlation coefficient
+corrClasseOrder <- corrClasse[order(corrClasse$coef, decreasing = FALSE), ]
+```
+```{r echo=FALSE}
+ggplot(corrClasseOrder, aes(x = factor(feature, levels = feature), y = coef)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() + 
+  xlab("Feature") + 
+  ylab("Correlation Coefficient")
+```

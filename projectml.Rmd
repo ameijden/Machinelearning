@@ -1,4 +1,4 @@
-Machine learning assignment
+## Machine learning assignment
 
 For this assignment we use the Weight Lifting Exercises Dataset
 (More info about the data is available at http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
@@ -16,6 +16,8 @@ In this project, we will use data from accelerometers on the belt, forearm, arm,
 The goal of this project is to predict the manner in which they did the exercise (the testset)
  
 First load the data
+```{r, setup, echo=FALSE, warning=FALSE, message=FALSE}
+```
 
 ```{r echo=FALSE}
 training <- read.csv2("pml-training.csv", sep=",",na.strings = c("NA","NaN","","#DIV/0!"))
@@ -23,8 +25,8 @@ testing <- read.csv2("pml-testing.csv", sep="," ,na.strings = c("NA","NaN","","#
 ```
 
 Look at this data
-```{r echo=FALSE}
-head(training)
+```{r eval=FALSE}
+str(training)
 ```
 
 We got 19622 observations of 160 variables.
@@ -37,13 +39,13 @@ training2 <- training[ , colSums(is.na(training)) <nrow(training)*0.5]
 
 No we only got 60 variables left. Let's do some exploratory analysis using graphs.
 
-```{r echo=FALSE}
+```{r echo=FALSE, message=FALSE}
 library(dplyr)
 training2b <-  select(training2, -c(1,2,3,4,5,6,7))
 ```
 
 
-```{r echo=FALSE}
+```{r}
 library(ggplot2)
 ggplot(data=training2b, aes(gyros_arm_x,magnet_arm_x))+
   geom_point(aes(color=classe))
@@ -52,8 +54,7 @@ ggplot(data=training2b, aes(gyros_arm_x,magnet_arm_x))+
 I couldn't find any meaningfull plot. The only conclusion for me was that I needed to trim down the number of predictors. Next steps, see if any variables have no variance and find the predictors which are highly correlated. 
 
 To be able to calculate the variance and correlation factor I first need to make the factor variables numeric.
-```{r echo=FALSE}
-library(dplyr)
+```{r message=FALSE, echo=FALSE}
 training2f <- training2b[,-53] %>%
   select_if(is.factor)
 
@@ -71,7 +72,7 @@ colnames(training3)[53] <- "classe"
 ```
 
 Let's see if we have some variables with no variance
-```{r echo=FALSE}
+```{r message=FALSE, echo=FALSE}
 library(caret)
 nearZeroVar(training3[,-53], saveMetrics = TRUE) ## No Trues
 cor(training3[,-53])
@@ -94,7 +95,6 @@ training4 <- training3
 training4$classe <- as.numeric(training4$classe)
 ```
 
-##### Create graph with correlation (https://www.kaggle.com/reisel/how-to-handle-correlated-features)
 
 ```{r echo=FALSE}
 Classe <- training4$classe
@@ -115,3 +115,45 @@ ggplot(corrClasseOrder, aes(x = factor(feature, levels = feature), y = coef)) +
   xlab("Feature") + 
   ylab("Correlation Coefficient")
 ```
+
+Comparing which predictor has the highest correlation with Classe, we keep that one and remove the other predictor.
+
+```{r echo=FALSE}
+training5 <- select(training4, -c(4, 26, 3, 10, 28, 2, 7, 13, 11, 17, 39, 40, 20, 23, 27, 35, 41, 50))
+```
+
+Let's see if we can make a nice decision tree
+```{r echo=FALSE, warning=FALSE}
+training51 <- select(training5, -c(35))
+training52 <- cbind(training51, training$classe)
+colnames(training52)[35] <- "classe"
+
+library(caret)
+modfit1c <-  train(classe ~., data = training52, method="rpart") 
+rattle::fancyRpartPlot(modfit1c$finalModel)
+print(modfit1c$finalModel)
+```
+
+Accuracy of this model is only about 50%. But we have some great features -> pitch_forearm < -35 -> then it is an A
+And we get 81% E if magnet_belt_y > 556. All the others branches are not so good.
+So let's try to improve the accuracy by using bagging with cross validation (as requested in the assignment). In this case I have used 10 fold cross validation to get hopefully a high accuracy. 
+Metric is Accuracy because it is a classification problem. Why not use Kappa? Kappa is a more usefull measure to use on problems that have an imbalance in the classes. Which in this case we don't have. 
+(https://machinelearningmastery.com/machine-learning-evaluation-metrics-in-r/)
+RMSE and R^2 are default metrics used to evaluate algorithms on regession datasets but we have a classification dataset so we don't use these measures. 
+Area under ROC curve metrix are only suitable for binary classification problems (two classes)
+
+
+```{r echo=FALSE}
+set.seed(5634)
+library(e1071)
+library(ipred)
+trCtrl <- trainControl(method = "cv", number = 10) ## k-fold Cross Validation
+modfitbag1 <- train(classe ~., data = training52, method="treebag", trControl=trCtrl, metric="Accuracy") 
+print(modfitbag1$finalModel)
+results = confusionMatrix(training52$classe, modfitbag1)
+print(results)
+```
+
+The accuraracy of this model is about 98%, on the trainset of course.
+This means we could be overfitting but I expect the accurracy on the testset should be about 95%. Which means that this model will probably have 1 of the 20 wrong. 
+I haven't split the trainingset to get a more accurate out of sample error. 

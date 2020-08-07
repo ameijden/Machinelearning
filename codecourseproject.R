@@ -495,10 +495,14 @@ print(modfit2b$finalModel)
 
 #### Can I use bagging (treebag) to get more trees and better accuraacy
 library(caret)
+library(e1071)
+library(ipred)
 set.seed(5634)
 trCtrl <- trainControl(method = "cv", number = 10) ## k-fold Cross Validation
-modfitbag1 <- train(classe ~., data = training52, method="treebag", trControl=trCtrl, metric="Accurarcy") 
+modfitbag1 <- train(classe ~., data = training52, method="treebag", trControl=trCtrl, metric="Accuracy") 
 print(modfitbag1$finalModel)
+results = confusionMatrix(training52$classe, modfitbag1)
+print(results)
 
 ## Accurarcy=98%!! 
 ## cv is cross validation
@@ -506,6 +510,16 @@ print(modfitbag1$finalModel)
 #### From the assignment
 ### You should create a report describing how you built your model, how you used cross validation, 
 ## what you think the expected out of sample error is, and why you made the choices you did. 
+
+## In this case I have used 10 fold cross validation to get hopefully a high accuracy. 
+## Metric is Accuracy because it is a classification problem. Why not use Kappa?
+##  (https://machinelearningmastery.com/machine-learning-evaluation-metrics-in-r/)
+
+## Logloss metric
+trCtrl <- trainControl(method = "cv", number = 10, classProbs=TRUE, summaryFunction=mnLogLoss) ## k-fold Cross Validation
+modfitbag1ll <- train(classe ~., data = training52, method="treebag", trControl=trCtrl, metric="logLoss") 
+print(modfitbag1ll)
+
 
 
 ######### First get the test set with the same transformations as the training set
